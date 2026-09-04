@@ -117,66 +117,36 @@ export default function Home() {
 
   const handleAnswer = (choice: number) => {
     if (status !== "playing" || locked || !question) return;
-    setLocked(true);
-    clearTimer();
-
-    const playerCorrect = choice === question.answer;
-    const playerMs = Date.now() - startedAtRef.current;
-    // Bot simulasi 55% benar, respons 0.8 - duration*0.9 detik
-    const botCorrect = Math.random() < 0.55;
-    const botMs = Math.floor(Math.random() * (durationSec * 900 - 800) + 800);
-
-    const winner = determineWinner({
-      answeredA: true,
-      answeredB: true,
-      isCorrectA: playerCorrect,
-      isCorrectB: botCorrect,
-      responseMsA: playerMs,
-      responseMsB: botMs,
-    });
-
-    if (winner === "A") {
+    const isCorrect = choice === question.answer;
+    if (isCorrect) {
+      // benar → langsung next (tanpa tunggu bot), delay pendek 900ms
+      setLocked(true);
+      clearTimer();
+      const playerMs = Date.now() - startedAtRef.current;
       setScoreA((s) => s + 1);
-      setMessage(
-        playerCorrect && botCorrect
-          ? `🎯 BENAR! Kamu ${(playerMs / 1000).toFixed(1)}s vs Bot ${(botMs / 1000).toFixed(1)}s — Kubu A menarik!`
-          : `🎯 BENAR! Kubu A menarik 1 langkah!`
-      );
+      setMessage(`🎯 BENAR! (${(playerMs / 1000).toFixed(1)}s) Kubu A menarik 1 langkah!`);
       setMsgType("a");
-    } else if (winner === "B") {
-      setScoreB((s) => s + 1);
-      if (playerCorrect && botCorrect) {
-        setMessage(`⏱ Bot lebih cepat ${(botMs / 1000).toFixed(1)}s vs kamu ${(playerMs / 1000).toFixed(1)}s — Kubu B menarik!`);
-      } else if (!playerCorrect) {
-        setMessage(`❌ Salah! Jawaban benar: ${question.answer} — Kubu B menarik!`);
-      } else {
-        setMessage(`Kubu B menarik!`);
-      }
-      setMsgType("b");
+      setTimeout(() => {
+        if (round >= totalRounds) {
+          setStatus("finished");
+          setShowResult(true);
+        } else {
+          setRound((r) => r + 1);
+          makeNextQuestion();
+          setLocked(false);
+          setMessage("Ronde berikutnya...");
+          setMsgType("neutral");
+          setTimeLeft(durationSec);
+        }
+      }, 900);
     } else {
-      if (!playerCorrect && !botCorrect) {
-        setMessage(`❌ Keduanya salah! Jawaban benar: ${question.answer} — Seri.`);
-      } else if (playerCorrect && botCorrect) {
-        setMessage(`🤝 Seri! Waktu sama — tali tidak bergerak.`);
-      } else {
-        setMessage(`❌ Salah! Jawaban benar: ${question.answer} — Seri, tidak ada tarikan.`);
-      }
+      // salah → boleh retry, kedua tim (kamu & bot) masih bisa jawab
+      setMessage(`❌ Salah! Coba lagi — ${choice} bukan ${question.answer}`);
       setMsgType("wrong");
+      // cooldown 500ms biar ada feedback shake, tetap playing & timer jalan
+      setLocked(true);
+      setTimeout(() => setLocked(false), 500);
     }
-
-    setTimeout(() => {
-      if (round >= totalRounds) {
-        setStatus("finished");
-        setShowResult(true);
-      } else {
-        setRound((r) => r + 1);
-        makeNextQuestion();
-        setLocked(false);
-        setMessage("Ronde berikutnya...");
-        setMsgType("neutral");
-        setTimeLeft(durationSec);
-      }
-    }, 1100);
   };
 
   // start timer when question changes and playing

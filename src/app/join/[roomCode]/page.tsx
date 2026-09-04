@@ -77,9 +77,14 @@ export default function JoinPage() {
   }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code, room]);
 
   useEffect(() => {
-    if (room?.status === "playing") setLocked(!!room.answers[team!]);
-    if (room?.status === "result" || room?.status === "countdown") setLocked(true);
-    if (room?.status === "finished") setLocked(true);
+    if (room?.status === "playing") {
+      const myAns = team ? room.answers[team] : null;
+      // hanya lock jika sudah benar (menang langsung), salah boleh retry
+      if (!myAns) setLocked(false);
+      else if (myAns.isCorrect) setLocked(true);
+      else setLocked(false);
+    } else if (room?.status === "result" || room?.status === "countdown") setLocked(true);
+    else if (room?.status === "finished") setLocked(true);
   }, [room?.status, room?.answers, team]);
 
   if (!room) {
@@ -102,13 +107,25 @@ export default function JoinPage() {
     }
   };
 
+  const [retryMsg, setRetryMsg] = useState<string | null>(null);
   const handleAnswer = async (choice: number) => {
     if (!team || !room.question || locked) return;
+    const isCorrect = choice === room.question.answer;
     const res = await submitAnswer(code, team, choice, token);
-    if (res) {
+    if (!res) return;
+    if (isCorrect) {
       setLocked(true);
-      const correct = choice === room.question.answer;
-      playSound(correct ? "correct" : "wrong");
+      setRetryMsg(null);
+      playSound("correct");
+    } else {
+      // salah → boleh retry, kasih feedback & cooldown 500ms
+      setRetryMsg(`❌ Salah! Coba lagi — jawaban ${choice} salah`);
+      playSound("wrong");
+      setLocked(true);
+      setTimeout(() => {
+        setLocked(false);
+        setRetryMsg(null);
+      }, 500);
     }
   };
 
@@ -179,11 +196,12 @@ export default function JoinPage() {
             )}
 
             <div className="mt-4 text-center min-h-6">
-              {locked && room.answers[team!] && <div className="text-sm font-black text-green-600">✓ JAWABAN TERKIRIM — Menunggu hasil...</div>}
-              {room.answers[team!] && room.status === "result" && (
-                <div className={`text-sm font-black ${room.answers[team!]!.isCorrect ? "text-green-600" : "text-rose-600"}`}>
-                  {room.answers[team!]!.isCorrect ? `🎉 BENAR! (${(room.answers[team!]!.responseMs / 1000).toFixed(1)}s)` : `❌ SALAH — Jawaban: ${room.question?.answer}`}
-                </div>
+              {retryMsg && room.status === "playing" && <div className="text-sm font-black text-amber-600 animate-shake">{retryMsg}</div>}
+              {room.answers[team!]?.isCorrect && room.status === "result" && (
+                <div className="text-sm font-black text-green-600">🎉 BENAR! ({(room.answers[team!]!.responseMs / 1000).toFixed(1)}s) — Menunggu next...</div>
+              )}
+              {room.answers[team!] && !room.answers[team!]!.isCorrect && room.status === "result" && (
+                <div className="text-sm font-black text-rose-600">❌ SALAH — Jawaban: {room.question?.answer}</div>
               )}
               {!room.answers[team!] && room.status === "result" && <div className="text-sm font-black text-amber-600">⏰ Tidak menjawab — Seri</div>}
             </div>

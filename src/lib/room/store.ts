@@ -124,16 +124,39 @@ export async function submitAnswer(code: string, team: Team, answer: number, tok
   const room = await loadRoom(code);
   if (!room || room.status !== "playing" || !room.question || !room.questionStartedAt) return null;
   if (room.players[team].token !== token) return null;
-  if (room.answers[team]) return room;
+  // allow retry if previous answer was wrong — only block if already correct
+  if (room.answers[team]?.isCorrect) return room;
   const now = Date.now();
   const responseMs = now - room.questionStartedAt;
   if (responseMs > room.config.durationSec * 1000) return room;
   const isCorrect = answer === room.question.answer;
+
+  // if correct → langsung menang & next question (tanpa tunggu lawan)
+  if (isCorrect) {
+    room.answers[team] = { answer, isCorrect, responseMs };
+    // simpan dulu sebelum resolve agar responseMs tercatat
+    await saveRoom(room);
+    return resolveRoundImmediate(code, team);
+  }
+
+  // if wrong → tetap playing, boleh retry (baik A maupun B)
   room.answers[team] = { answer, isCorrect, responseMs };
   await saveRoom(room);
-  if (room.answers.A && room.answers.B) {
-    return resolveRound(code);
-  }
+  // jangan resolve, biarkan kedua tim bisa coba lagi sampai ada yang benar atau timeout
+  return room;
+}
+
+// immediate win when someone answers correctly
+async function resolveRoundImmediate(code: string, winningTeam: Team): Promise<RoomState | null> {
+  const room = await loadRoom(code);
+  if (!room) return null;
+  if (winningTeam === "A") room.scoreA += 1;
+  if (winningTeam === "B") room.scoreB += 1;
+  const ans = room.answers[winningTeam];
+  const text = `KUBU ${winningTeam} MENARIK! ${ans ? `(${(ans.responseMs / 1000).toFixed(1)}s)` : ""}`;
+  room.lastResult = { winner: winningTeam, text };
+  room.status = "result";
+  await saveRoom(room);
   return room;
 }
 

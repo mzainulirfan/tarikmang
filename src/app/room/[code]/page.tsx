@@ -49,17 +49,19 @@ export default function DisplayPage() {
     };
   }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code, room]);
 
-  // auto handle result -> nextRound after delay, sound & confetti
+  // auto handle result -> nextRound cepat jika benar, sedikit delay jika seri
   useEffect(() => {
     if (!room) return;
     if (room.status === "result" && room.lastResult) {
-      if (room.lastResult.winner === "A" || room.lastResult.winner === "B") {
+      const isWin = room.lastResult.winner === "A" || room.lastResult.winner === "B";
+      if (isWin) {
         playSound("rope");
         setConfettiKey((k) => k + 1);
       } else {
         playSound("wrong");
       }
-      const t = setTimeout(() => void nextRoundOrFinish(code), 2200);
+      const delay = isWin ? 1200 : 1500; // perbaiki delay: benar langsung next 1.2s, seri 1.5s (sebelumnya 2.2s)
+      const t = setTimeout(() => void nextRoundOrFinish(code), delay);
       return () => clearTimeout(t);
     }
     if (room.status === "finished") {

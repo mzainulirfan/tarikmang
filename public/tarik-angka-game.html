@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tarik Angka! — Game Matematika</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'] },
+          keyframes: {
+            bounceIn: {
+              '0%': { transform: 'scale(.65)', opacity: '0' },
+              '70%': { transform: 'scale(1.08)' },
+              '100%': { transform: 'scale(1)', opacity: '1' }
+            },
+            shake: {
+              '0%,100%': { transform: 'translateX(0)' },
+              '20%': { transform: 'translateX(-8px) rotate(-1deg)' },
+              '40%': { transform: 'translateX(8px) rotate(1deg)' },
+              '60%': { transform: 'translateX(-6px)' },
+              '80%': { transform: 'translateX(6px)' }
+            },
+            pop: {
+              '0%': { transform: 'scale(.5)', opacity: '0' },
+              '60%': { transform: 'scale(1.25)', opacity: '1' },
+              '100%': { transform: 'scale(1)', opacity: '1' }
+            },
+            float: {
+              '0%,100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-8px)' }
+            }
+          },
+          animation: {
+            bounceIn: 'bounceIn .35s ease-out',
+            shake: 'shake .45s ease-in-out',
+            pop: 'pop .35s ease-out',
+            float: 'float 2s ease-in-out infinite'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background:
+        radial-gradient(circle at 10% 10%, rgba(255,255,255,.75) 0 70px, transparent 71px),
+        radial-gradient(circle at 90% 20%, rgba(255,255,255,.5) 0 90px, transparent 91px),
+        linear-gradient(180deg, #e0f2fe 0%, #fef9c3 100%);
+      min-height: 100vh;
+    }
+    .rope {
+      background: repeating-linear-gradient(
+        90deg,
+        #b7791f 0 12px,
+        #d69e2e 12px 24px,
+        #b7791f 24px 36px
+      );
+      box-shadow: inset 0 2px 3px rgba(255,255,255,.35), 0 3px 8px rgba(120,70,0,.22);
+    }
+    .grass {
+      background: linear-gradient(180deg, #86efac, #4ade80);
+    }
+    .card-shadow {
+      box-shadow: 0 18px 45px rgba(15, 23, 42, .12);
+    }
+    .answer:active { transform: scale(.96); }
+    .disabled { pointer-events:none; opacity:.55; }
+    .confetti {
+      position: fixed;
+      width: 9px;
+      height: 15px;
+      z-index: 50;
+      animation: confettiFall 900ms ease-out forwards;
+    }
+    @keyframes confettiFall {
+      from { transform: translate(0,0) rotate(0); opacity:1; }
+      to { transform: translate(var(--x), var(--y)) rotate(720deg); opacity:0; }
+    }
+  </style>
+</head>
+<body class="text-slate-800 font-sans">
+  <main class="max-w-6xl mx-auto px-4 py-6 md:py-10">
+
+    <header class="text-center mb-5">
+      <div class="inline-flex items-center gap-2 bg-white/80 border border-white rounded-full px-4 py-2 text-sm font-bold text-sky-700 shadow-sm">
+        🧠 GAME MATEMATIKA
+      </div>
+      <h1 class="mt-3 text-4xl md:text-6xl font-black tracking-tight text-slate-900">
+        Tarik <span class="text-sky-500">Angka!</span>
+      </h1>
+      <p class="mt-2 text-slate-600 font-semibold">Jawab cepat, jawab benar, tarik lawan!</p>
+    </header>
+
+    <section class="bg-white/90 backdrop-blur rounded-[2rem] card-shadow border border-white overflow-hidden">
+      <!-- scoreboard -->
+      <div class="p-4 md:p-6 border-b border-slate-100">
+        <div class="grid grid-cols-3 items-center gap-3">
+          <div id="teamABox" class="rounded-2xl bg-sky-50 border-2 border-sky-200 p-3 md:p-4 text-center">
+            <div class="text-3xl">🔵</div>
+            <div class="font-black text-sky-700">KUBU A</div>
+            <div id="scoreA" class="text-2xl font-black">0</div>
+          </div>
+          <div class="text-center">
+            <div class="text-xs uppercase tracking-widest font-black text-slate-400">Babak</div>
+            <div id="round" class="text-2xl font-black">1 / 10</div>
+          </div>
+          <div id="teamBBox" class="rounded-2xl bg-rose-50 border-2 border-rose-200 p-3 md:p-4 text-center">
+            <div class="text-3xl">🔴</div>
+            <div class="font-black text-rose-700">KUBU B</div>
+            <div id="scoreB" class="text-2xl font-black">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- arena -->
+      <div class="relative grass h-52 md:h-64 overflow-hidden">
+        <div class="absolute inset-x-0 bottom-0 h-9 bg-green-700/20"></div>
+
+        <div class="absolute left-1/2 top-0 bottom-0 w-1 bg-white/70 border-dashed border-x border-white/80"></div>
+        <div class="absolute left-1/2 -translate-x-1/2 top-3 bg-white/90 rounded-full px-3 py-1 text-xs font-black text-slate-500 shadow">
+          GARIS TENGAH
+        </div>
+
+        <!-- rope -->
+        <div id="rope" class="absolute left-[7%] right-[7%] top-[57%] h-5 md:h-6 rounded-full rope transition-transform duration-500"></div>
+        <div id="flag" class="absolute top-[40%] left-1/2 -translate-x-1/2 transition-all duration-500 text-3xl">🏳️</div>
+
+        <!-- characters -->
+        <div id="charA" class="absolute left-[3%] top-[37%] text-5xl md:text-6xl transition-all duration-500 select-none">🧒</div>
+        <div id="charB" class="absolute right-[3%] top-[37%] text-5xl md:text-6xl transition-all duration-500 select-none scale-x-[-1]">👧</div>
+
+        <div class="absolute left-[3%] bottom-1 text-xs font-black text-sky-900">TIM A</div>
+        <div class="absolute right-[3%] bottom-1 text-xs font-black text-rose-900">TIM B</div>
+      </div>
+
+      <!-- question -->
+      <div class="p-5 md:p-8 text-center">
+        <div class="flex justify-center items-center gap-2 mb-3">
+          <span class="text-xs font-black uppercase tracking-widest text-slate-400">Pertanyaan</span>
+          <span id="timerBadge" class="rounded-full bg-amber-100 text-amber-700 px-3 py-1 text-xs font-black">10.0 dtk</span>
+        </div>
+
+        <div id="question" class="text-5xl md:text-7xl font-black tracking-tight text-slate-900 mb-6 animate-bounceIn">7 + 5 = ?</div>
+
+        <div id="answers" class="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl mx-auto"></div>
+
+        <div id="message" class="min-h-10 mt-5 text-lg font-black"></div>
+
+        <button id="startBtn" class="mt-2 bg-slate-900 hover:bg-slate-800 text-white font-black px-7 py-3 rounded-2xl shadow-lg transition active:scale-95">
+          Mulai Permainan
+        </button>
+      </div>
+    </section>
+
+    <p class="text-center mt-5 text-sm text-slate-500 font-semibold">
+      Aturan: jawaban benar menarik tali <b>1 langkah</b>. Jika waktu habis, tali tidak bergerak.
+    </p>
+  </main>
+
+  <!-- result modal -->
+  <div id="modal" class="hidden fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm items-center justify-center p-4">
+    <div class="bg-white rounded-[2rem] p-8 text-center max-w-sm w-full card-shadow animate-bounceIn">
+      <div id="winnerEmoji" class="text-7xl mb-3">🏆</div>
+      <div class="text-sm font-black uppercase tracking-widest text-slate-400">Pemenang</div>
+      <h2 id="winner" class="text-4xl font-black mt-1">KUBU A!</h2>
+      <p id="finalScore" class="mt-3 text-slate-500 font-semibold"></p>
+      <button onclick="resetGame()" class="mt-6 w-full bg-sky-500 hover:bg-sky-600 text-white font-black py-3 rounded-2xl">
+        Main Lagi
+      </button>
+    </div>
+  </div>
+
+<script>
+// PRD fix: 10 ronde fixed, tidak ada early WIN_SCORE. Winner = skor tertinggi setelah 10 ronde.
+const TOTAL_ROUNDS = 10;
+const TIME_LIMIT = 10;
+
+let state = {
+  a: 0,
+  b: 0,
+  round: 1,
+  current: null,
+  playing: false,
+  locked: true,
+  timeLeft: TIME_LIMIT,
+  timer: null
+};
+
+const $ = id => document.getElementById(id);
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function makeQuestion() {
+  const ops = ['+', '-', '×', '÷'];
+  const op = ops[randomInt(0, ops.length - 1)];
+  let a, b, answer;
+
+  if (op === '+') {
+    a = randomInt(2, 20);
+    b = randomInt(2, 20);
+    answer = a + b;
+  } else if (op === '-') {
+    a = randomInt(5, 30);
+    b = randomInt(2, a);
+    answer = a - b;
+  } else if (op === '×') {
+    a = randomInt(2, 10);
+    b = randomInt(2, 10);
+    answer = a * b;
+  } else {
+    b = randomInt(2, 10);
+    const q = randomInt(2, 10);
+    a = b * q;
+    answer = q;
+  }
+
+  const choices = new Set([answer]);
+  while (choices.size < 4) {
+    const offset = randomInt(-10, 10);
+    if (offset !== 0) choices.add(Math.max(0, answer + offset));
+  }
+
+  return {
+    text: `${a} ${op} ${b} = ?`,
+    answer,
+    choices: [...choices].sort(() => Math.random() - .5)
+  };
+}
+
+function renderQuestion() {
+  state.current = makeQuestion();
+  $('question').textContent = state.current.text;
+  $('question').classList.remove('animate-bounceIn');
+  void $('question').offsetWidth;
+  $('question').classList.add('animate-bounceIn');
+
+  $('answers').innerHTML = state.current.choices.map((choice, i) => `
+    <button
+      class="answer bg-sky-50 hover:bg-sky-100 border-2 border-sky-200 hover:border-sky-400 rounded-2xl py-4 text-2xl font-black transition active:scale-95"
+      onclick="answer(${choice})">
+      ${choice}
+    </button>
+  `).join('');
+}
+
+function updateUI() {
+  $('scoreA').textContent = state.a;
+  $('scoreB').textContent = state.b;
+  $('round').textContent = `${Math.min(state.round, TOTAL_ROUNDS)} / ${TOTAL_ROUNDS}`;
+
+  const pos = state.a - state.b;
+  const clamped = Math.max(-5, Math.min(5, pos));
+  const shift = clamped * 5.2;
+
+  $('rope').style.transform = `translateX(${shift}%)`;
+  $('flag').style.transform = `translateX(calc(-50% + ${shift}vw))`;
+
+  $('charA').style.transform = `translateX(${clamped * 1.4}%)`;
+  $('charB').style.transform = `scaleX(-1) translateX(${clamped * 1.4}%)`;
+
+  $('scoreA').classList.add('animate-pop');
+  $('scoreB').classList.add('animate-pop');
+  setTimeout(() => {
+    $('scoreA').classList.remove('animate-pop');
+    $('scoreB').classList.remove('animate-pop');
+  }, 350);
+}
+
+function setMessage(text, type = 'neutral') {
+  const colors = {
+    a: 'text-sky-600',
+    b: 'text-rose-600',
+    wrong: 'text-amber-600',
+    neutral: 'text-slate-500'
+  };
+  $('message').className = `min-h-10 mt-5 text-lg font-black ${colors[type]}`;
+  $('message').textContent = text;
+}
+
+function startTimer() {
+  clearInterval(state.timer);
+  state.timeLeft = TIME_LIMIT;
+  updateTimer();
+
+  state.timer = setInterval(() => {
+    state.timeLeft -= 0.1;
+    updateTimer();
+
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timer);
+      state.locked = true;
+      setMessage('⏰ Waktu habis! Tidak ada yang menarik.');
+      disableAnswers();
+      setTimeout(nextRound, 850);
+    }
+  }, 100);
+}
+
+function updateTimer() {
+  $('timerBadge').textContent = `${Math.max(0, state.timeLeft).toFixed(1)} dtk`;
+  $('timerBadge').className =
+    `rounded-full px-3 py-1 text-xs font-black ${
+      state.timeLeft <= 3 ? 'bg-rose-100 text-rose-700 animate-pulse' : 'bg-amber-100 text-amber-700'
+    }`;
+}
+
+function disableAnswers() {
+  [...$('answers').children].forEach(btn => btn.classList.add('disabled'));
+}
+
+function answer(choice) {
+  if (!state.playing || state.locked) return;
+
+  state.locked = true;
+  clearInterval(state.timer);
+  disableAnswers();
+
+  // Simulasi PRD #13 scoring untuk prototype single-device:
+  // Pemain = Kubu A, Bot = Kubu B (random). Bandingkan correctness + response time.
+  const playerCorrect = choice === state.current.answer;
+  const playerMs = Math.round((TIME_LIMIT - state.timeLeft) * 1000);
+  // Bot simulasi: 55% benar, waktu 0.8s - 8s
+  const botCorrect = Math.random() < 0.55;
+  const botMs = randomInt(800, 8000);
+
+  let roundWinner = 'draw';
+  if (playerCorrect && !botCorrect) roundWinner = 'a';
+  else if (!playerCorrect && botCorrect) roundWinner = 'b';
+  else if (playerCorrect && botCorrect) {
+    roundWinner = playerMs < botMs ? 'a' : (botMs < playerMs ? 'b' : 'draw');
+  }
+
+  if (roundWinner === 'a') {
+    state.a++;
+    setMessage(`🎯 BENAR (${(playerMs/1000).toFixed(1)}s vs Bot ${(botMs/1000).toFixed(1)}s)! Kubu A menarik 1 langkah!`, 'a');
+    $('teamABox').classList.add('animate-shake');
+    setTimeout(() => $('teamABox').classList.remove('animate-shake'), 450);
+    updateUI();
+    confetti('left');
+  } else if (roundWinner === 'b') {
+    state.b++;
+    if (playerCorrect) {
+      setMessage(`⏱ Bot lebih cepat! Kamu ${(playerMs/1000).toFixed(1)}s, Bot ${(botMs/1000).toFixed(1)}s — Kubu B menarik!`, 'b');
+    } else {
+      setMessage(`❌ Salah! Jawaban benar: ${state.current.answer} — Kubu B menarik!`, 'b');
+      $('question').classList.add('animate-shake');
+      setTimeout(() => $('question').classList.remove('animate-shake'), 450);
+    }
+    $('teamBBox').classList.add('animate-shake');
+    setTimeout(() => $('teamBBox').classList.remove('animate-shake'), 450);
+    updateUI();
+    confetti('right');
+  } else {
+    // draw: keduanya salah atau seri waktu
+    if (!playerCorrect && !botCorrect) {
+      setMessage(`❌ Keduanya salah! Jawaban benar: ${state.current.answer} — Seri, tali tidak bergerak.`, 'wrong');
+    } else if (playerCorrect && botCorrect) {
+      setMessage(`🤝 Seri! Waktu sama ${(playerMs/1000).toFixed(1)}s — tali tidak bergerak.`, 'neutral');
+    } else {
+      setMessage(`❌ Salah! Jawaban benar: ${state.current.answer} — Seri.`, 'wrong');
+    }
+    $('question').classList.add('animate-shake');
+    setTimeout(() => $('question').classList.remove('animate-shake'), 450);
+  }
+
+  setTimeout(nextRound, 1200);
+}
+
+function nextRound() {
+  if (!state.playing) return;
+  if (state.round >= TOTAL_ROUNDS) {
+    showWinner();
+    return;
+  }
+  state.round++;
+  state.locked = false;
+  renderQuestion();
+  startTimer();
+  updateUI();
+}
+
+function startGame() {
+  clearInterval(state.timer);
+  state = { a: 0, b: 0, round: 1, current: null, playing: true, locked: false, timeLeft: TIME_LIMIT, timer: null };
+  $('startBtn').textContent = 'Mulai Lagi';
+  setMessage('Cepat! Siapa yang paling siap?', 'neutral');
+  renderQuestion();
+  updateUI();
+  startTimer();
+}
+
+function showWinner() {
+  clearInterval(state.timer);
+  state.playing = false;
+  state.locked = true;
+
+  let winner = 'Seri!';
+  let emoji = '🤝';
+
+  if (state.a > state.b) {
+    winner = 'KUBU A!';
+    emoji = '🏆';
+  } else if (state.b > state.a) {
+    winner = 'KUBU B!';
+    emoji = '🏆';
+  }
+
+  $('winner').textContent = winner;
+  $('winnerEmoji').textContent = emoji;
+  $('finalScore').textContent = `Skor akhir: Kubu A ${state.a} — ${state.b} Kubu B`;
+  $('modal').classList.remove('hidden');
+  $('modal').classList.add('flex');
+  confetti('center');
+}
+
+function resetGame() {
+  $('modal').classList.add('hidden');
+  $('modal').classList.remove('flex');
+  startGame();
+}
+
+function confetti(side) {
+  const count = side === 'center' ? 32 : 18;
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('span');
+    el.className = 'confetti';
+    el.style.left = side === 'left' ? `${randomInt(5,45)}vw` :
+                    side === 'right' ? `${randomInt(55,95)}vw` : `${randomInt(25,75)}vw`;
+    el.style.top = `${randomInt(20,55)}vh`;
+    el.style.background = ['#38bdf8','#fb7185','#facc15','#4ade80','#a78bfa'][randomInt(0,4)];
+    el.style.setProperty('--x', `${randomInt(-180,180)}px`);
+    el.style.setProperty('--y', `${randomInt(180,420)}px`);
+    el.style.transform = `rotate(${randomInt(0,360)}deg)`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+}
+
+$('startBtn').addEventListener('click', startGame);
+updateUI();
+</script>
+</body>
+</html>

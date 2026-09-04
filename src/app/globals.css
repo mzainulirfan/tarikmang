@@ -12,15 +12,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background:
+    radial-gradient(circle at 10% 10%, rgba(255,255,255,.75) 0 70px, transparent 71px),
+    radial-gradient(circle at 90% 20%, rgba(255,255,255,.5) 0 90px, transparent 91px),
+    linear-gradient(180deg, #e0f2fe 0%, #fef9c3 100%);
+  min-height: 100vh;
+  color: #1e293b;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@keyframes bounceIn {
+  0% { transform: scale(.65); opacity: 0; }
+  70% { transform: scale(1.08); }
+  100% { transform: scale(1); opacity: 1; }
 }
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-8px) rotate(-1deg); }
+  40% { transform: translateX(8px) rotate(1deg); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+@keyframes pop {
+  0% { transform: scale(.5); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.animate-bounceIn { animation: bounceIn .35s ease-out; }
+.animate-shake { animation: shake .45s ease-in-out; }
+.animate-pop { animation: pop .35s ease-out; }

@@ -15,11 +15,31 @@ export default function HostPage() {
   const [totalRounds, setTotalRounds] = useState(10);
   const [durationSec, setDurationSec] = useState(10);
 
-  const handleCreate = () => {
-    const code = generateRoomCode(5);
-    const state = createRoomState(code, { difficulty, operation, totalRounds, durationSec });
-    saveRoom(state);
-    router.push(`/room/${code}`);
+  const [loading, setLoading] = useState(false);
+
+  const handleCreate = async () => {
+    setLoading(true);
+    try {
+      // Prefer server API when Supabase configured (cross-device), fallback local
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
+        const res = await fetch("/api/game/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ difficulty, operation, totalRounds, durationSec }),
+        });
+        const json = await res.json();
+        if (json.code) {
+          router.push(`/room/${json.code}`);
+          return;
+        }
+      }
+      const code = generateRoomCode(5);
+      const state = createRoomState(code, { difficulty, operation, totalRounds, durationSec });
+      await saveRoom(state);
+      router.push(`/room/${code}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -68,8 +88,8 @@ export default function HostPage() {
           Default MVP: Mudah / Campuran / 10 ronde / 10 detik. Kode room 5 karakter, TTL 24 jam.
         </div>
 
-        <button onClick={handleCreate} className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition">
-          Buat Game — Tampilkan QR
+        <button onClick={handleCreate} disabled={loading} className="mt-6 w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition">
+          {loading ? "Membuat..." : "Buat Game — Tampilkan QR"}
         </button>
 
         <div className="mt-4 flex gap-3 text-sm">

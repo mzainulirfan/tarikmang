@@ -1,15 +1,45 @@
 import { NextResponse } from "next/server";
-// PRD #37: POST /api/game/create — placeholder, sekarang room dibuat client-side via src/lib/room/store.ts
-// Untuk Supabase: buat row di `game_rooms` + generate code + return { code, room }
+import { getServiceClient } from "@/lib/supabase/server";
+import { createRoomState } from "@/lib/room/store";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const { difficulty = "mudah", operation = "campuran", totalRounds = 10, durationSec = 10 } = body;
-  // Simulasi: generate code (real impl: check uniqueness di DB)
-  const code = Array.from({ length: 5 }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Math.floor(Math.random() * 32)]).join("");
-  return NextResponse.json({
-    code,
-    config: { difficulty, operation, totalRounds, durationSec },
-    note: "Placeholder — gunakan src/lib/room/store.createRoomState() client-side. Untuk Supabase, implement INSERT ke tabel game_rooms.",
-  });
+
+  const supa = getServiceClient();
+  // generate unique code
+  let code = "";
+  let attempts = 0;
+  const CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  while (attempts < 10) {
+    code = Array.from({ length: 5 }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join("");
+    if (supa) {
+      const { data } = await supa.from("game_rooms").select("code").eq("code", code).single();
+      if (!data) break;
+    } else break;
+    attempts++;
+  }
+
+  const state = createRoomState(code, { difficulty, operation, totalRounds, durationSec });
+
+  if (supa) {
+    const payload = {
+      code,
+      status: state.status,
+      difficulty,
+      operations: operation,
+      total_rounds: totalRounds,
+      duration_seconds: durationSec,
+      current_round: 1,
+      score_a: 0,
+      score_b: 0,
+      question_text: JSON.stringify(state),
+      sudden_death: false,
+      expires_at: new Date(state.expiresAt).toISOString(),
+    };
+    const { error } = await supa.from("game_rooms").insert(payload);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ code, state });
 }

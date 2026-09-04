@@ -35,6 +35,10 @@ function storageKey(code: string) {
   return `${STORAGE_PREFIX}${code}`;
 }
 
+function isRemote(): boolean {
+  return typeof window !== "undefined" && !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+}
+
 export function createRoomState(code: string, config: RoomConfig): RoomState {
   const now = Date.now();
   return {
@@ -55,10 +59,10 @@ export function createRoomState(code: string, config: RoomConfig): RoomState {
   };
 }
 
-export function saveRoom(state: RoomState) {
+// local only helpers
+function saveLocal(state: RoomState) {
   if (typeof window === "undefined") return;
   localStorage.setItem(storageKey(state.code), JSON.stringify(state));
-  // broadcast
   try {
     const ch = new BroadcastChannel(`tarikmang:${state.code}`);
     ch.postMessage({ type: "ROOM_UPDATED", state });
@@ -66,7 +70,7 @@ export function saveRoom(state: RoomState) {
   } catch {}
 }
 
-export function loadRoom(code: string): RoomState | null {
+function loadLocal(code: string): RoomState | null {
   if (typeof window === "undefined") return null;
   const raw = localStorage.getItem(storageKey(code));
   if (!raw) return null;
@@ -79,39 +83,73 @@ export function loadRoom(code: string): RoomState | null {
   }
 }
 
-export function joinTeam(code: string, team: Team, token: string): RoomState | null {
-  const room = loadRoom(code);
+export async function saveRoom(state: RoomState): Promise<void> {
+  // always save local as cache + broadcast
+  saveLocal(state);
+  if (!isRemote()) return;
+  try {
+    await fetch(`/api/game/${state.code}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state }),
+    });
+  } catch {}
+}
+
+export async function loadRoom(code: string): Promise<RoomState | null> {
+  if (!isRemote()) return loadLocal(code);
+  try {
+    const res = await fetch(`/api/game/${code}`, { cache: "no-store" });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.state) {
+        // cache locally
+        saveLocal(json.state);
+        if (Date.now() > json.state.expiresAt) return null;
+        return json.state as RoomState;
+      }
+    }
+  } catch {}
+  // fallback local
+  return loadLocal(code);
+}
+
+// sync versions for fallback / host that hasn't migrated yet
+export function loadRoomSync(code: string): RoomState | null {
+  return loadLocal(code);
+}
+
+export async function joinTeam(code: string, team: Team, token: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room) return null;
-  if (room.players[team].token && room.players[team].token !== token) return null; // taken
-  // also prevent same token joining both teams
+  if (room.players[team].token && room.players[team].token !== token) return null;
   const other: Team = team === "A" ? "B" : "A";
-  if (room.players[other].token === token) return room; // already joined other side
+  if (room.players[other].token === token) return room;
   room.players[team] = { token, connected: true };
-  // if both joined -> ready
   if (room.players.A.token && room.players.B.token) room.status = "ready";
-  saveRoom(room);
+  await saveRoom(room);
   return room;
 }
 
-export function leaveTeam(code: string, team: Team) {
-  const room = loadRoom(code);
+export async function leaveTeam(code: string, team: Team): Promise<void> {
+  const room = await loadRoom(code);
   if (!room) return;
   room.players[team] = { token: null, connected: false };
   room.status = "waiting";
-  saveRoom(room);
+  await saveRoom(room);
 }
 
-export function startCountdown(code: string) {
-  const room = loadRoom(code);
+export async function startCountdown(code: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room) return null;
   if (!room.players.A.token || !room.players.B.token) return null;
   room.status = "countdown";
-  saveRoom(room);
+  await saveRoom(room);
   return room;
 }
 
-export function startRound(code: string) {
-  const room = loadRoom(code);
+export async function startRound(code: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room) return null;
   const q = generateQuestion(room.config.difficulty, room.config.operation);
   room.question = q;
@@ -119,35 +157,32 @@ export function startRound(code: string) {
   room.answers = { A: null, B: null };
   room.status = "playing";
   room.lastResult = null;
-  saveRoom(room);
+  await saveRoom(room);
   return room;
 }
 
-export function submitAnswer(code: string, team: Team, answer: number, token: string): RoomState | null {
-  const room = loadRoom(code);
+export async function submitAnswer(code: string, team: Team, answer: number, token: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room || room.status !== "playing" || !room.question || !room.questionStartedAt) return null;
-  if (room.players[team].token !== token) return null; // invalid token
-  if (room.answers[team]) return room; // anti double submit PRD #34
+  if (room.players[team].token !== token) return null;
+  if (room.answers[team]) return room;
   const now = Date.now();
   const responseMs = now - room.questionStartedAt;
-  if (responseMs > room.config.durationSec * 1000) return room; // timeout ignored
+  if (responseMs > room.config.durationSec * 1000) return room;
   const isCorrect = answer === room.question.answer;
   room.answers[team] = { answer, isCorrect, responseMs };
-  saveRoom(room);
-
-  // if both answered -> resolve immediately
+  await saveRoom(room);
   if (room.answers.A && room.answers.B) {
     return resolveRound(code);
   }
   return room;
 }
 
-export function resolveRound(code: string): RoomState | null {
-  const room = loadRoom(code);
+export async function resolveRound(code: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room || !room.question) return null;
   const a = room.answers.A;
   const b = room.answers.B;
-
   const winner = determineWinner({
     answeredA: !!a,
     answeredB: !!b,
@@ -156,10 +191,8 @@ export function resolveRound(code: string): RoomState | null {
     responseMsA: a?.responseMs ?? null,
     responseMsB: b?.responseMs ?? null,
   });
-
   if (winner === "A") room.scoreA += 1;
   if (winner === "B") room.scoreB += 1;
-
   const text =
     winner === "A"
       ? `KUBU A MENARIK! ${a ? `(${(a.responseMs / 1000).toFixed(1)}s)` : ""}`
@@ -168,24 +201,22 @@ export function resolveRound(code: string): RoomState | null {
         : a?.isCorrect && b?.isCorrect
           ? "Seri! Waktu sama"
           : "Seri — tidak ada tarikan";
-
   room.lastResult = { winner, text };
   room.status = "result";
-  saveRoom(room);
+  await saveRoom(room);
   return room;
 }
 
-export function handleTimeout(code: string) {
-  const room = loadRoom(code);
+export async function handleTimeout(code: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room || room.status !== "playing") return null;
   return resolveRound(code);
 }
 
-export function nextRoundOrFinish(code: string): RoomState | null {
-  const room = loadRoom(code);
+export async function nextRoundOrFinish(code: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room) return null;
   if (room.status !== "result") return room;
-  // Sudden Death PRD #18: if score tied after final round, add extra round until winner
   if (room.round >= room.config.totalRounds) {
     if (room.scoreA === room.scoreB) {
       room.suddenDeath = true;
@@ -195,10 +226,9 @@ export function nextRoundOrFinish(code: string): RoomState | null {
       room.answers = { A: null, B: null };
       room.lastResult = { winner: "draw", text: "SUDDEN DEATH! Ronde penentuan — yang benar & tercepat langsung menang!" };
       room.status = "countdown";
-      saveRoom(room);
+      await saveRoom(room);
       return room;
     }
-    // if suddenDeath round already played and still draw -> keep sudden death until winner decides
     if (room.suddenDeath && room.lastResult?.winner === "draw") {
       room.round += 1;
       room.question = null;
@@ -206,17 +236,16 @@ export function nextRoundOrFinish(code: string): RoomState | null {
       room.answers = { A: null, B: null };
       room.lastResult = { winner: "draw", text: "SUDDEN DEATH berlanjut!" };
       room.status = "countdown";
-      saveRoom(room);
+      await saveRoom(room);
       return room;
     }
     room.status = "finished";
-    saveRoom(room);
+    await saveRoom(room);
     return room;
   }
-  // suddenDeath win check: if we were in suddenDeath and now have winner, finish
   if (room.suddenDeath && room.lastResult?.winner !== "draw") {
     room.status = "finished";
-    saveRoom(room);
+    await saveRoom(room);
     return room;
   }
   room.round += 1;
@@ -225,12 +254,12 @@ export function nextRoundOrFinish(code: string): RoomState | null {
   room.answers = { A: null, B: null };
   room.lastResult = null;
   room.status = "countdown";
-  saveRoom(room);
+  await saveRoom(room);
   return room;
 }
 
-export function resetRoom(code: string) {
-  const room = loadRoom(code);
+export async function resetRoom(code: string): Promise<RoomState | null> {
+  const room = await loadRoom(code);
   if (!room) return null;
   room.status = "waiting";
   room.round = 1;
@@ -241,6 +270,9 @@ export function resetRoom(code: string) {
   room.answers = { A: null, B: null };
   room.lastResult = null;
   room.suddenDeath = false;
-  saveRoom(room);
+  await saveRoom(room);
   return room;
 }
+
+// keep sync wrappers for pages that still use sync (fallback)
+export { saveLocal as saveRoomSync, loadLocal as loadRoomSyncAlias };

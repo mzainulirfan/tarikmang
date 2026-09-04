@@ -49,9 +49,8 @@ export default function JoinPage() {
   useEffect(() => {
     if (!room || !team || !token) return;
     if (room.players[team].token === token) return;
-    // attempt to ensure we are joined (if reconnect)
     const taken = room.players[team].token;
-    if (!taken) joinTeam(code, team, token);
+    if (!taken) void joinTeam(code, team, token);
   }, [room, team, token, code]);
 
   // timer sync to room.questionStartedAt
@@ -67,8 +66,7 @@ export default function JoinPage() {
       setTimeLeft(+left.toFixed(1));
       if (left <= 0 && timerRef.current) {
         clearInterval(timerRef.current);
-        // timeout handled by display, but also trigger local
-        handleTimeout(code);
+        void handleTimeout(code);
       }
     };
     tick();
@@ -92,23 +90,23 @@ export default function JoinPage() {
     );
   }
 
-  const handleSelect = (t: Team) => {
+  const handleSelect = async (t: Team) => {
     if (!token) return;
     const taken = !!room.players[t].token && room.players[t].token !== token;
     if (taken) return;
-    const res = joinTeam(code, t, token);
+    const res = await joinTeam(code, t, token);
     if (res) {
       setTeam(t);
       localStorage.setItem(`tarikmang:player:${code}`, JSON.stringify({ team: t, token }));
+      playSound("join");
     }
   };
 
-  const handleAnswer = (choice: number) => {
+  const handleAnswer = async (choice: number) => {
     if (!team || !room.question || locked) return;
-    const res = submitAnswer(code, team, choice, token);
+    const res = await submitAnswer(code, team, choice, token);
     if (res) {
       setLocked(true);
-      // optimistic sound
       const correct = choice === room.question.answer;
       playSound(correct ? "correct" : "wrong");
     }

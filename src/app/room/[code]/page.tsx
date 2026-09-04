@@ -39,7 +39,7 @@ export default function DisplayPage() {
       setTimeLeft(+left.toFixed(1));
       if (left <= 0) {
         clearInterval(timerRef.current!);
-        handleTimeout(code);
+        void handleTimeout(code);
       }
     };
     tick();
@@ -59,7 +59,7 @@ export default function DisplayPage() {
       } else {
         playSound("wrong");
       }
-      const t = setTimeout(() => nextRoundOrFinish(code), 2200);
+      const t = setTimeout(() => void nextRoundOrFinish(code), 2200);
       return () => clearTimeout(t);
     }
     if (room.status === "finished") {
@@ -104,7 +104,7 @@ export default function DisplayPage() {
             {soundOn ? "🔊 Sound ON" : "🔇 OFF"}
           </button>
           <button onClick={() => document.documentElement.requestFullscreen?.()} className="bg-white border border-slate-200 px-3 py-2 rounded-xl text-xs font-black">Fullscreen</button>
-          <button onClick={() => { resetRoom(code); setCountdownKey(k=>k+1); }} className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-black">Reset</button>
+          <button onClick={() => { void resetRoom(code); setCountdownKey(k=>k+1); }} className="bg-slate-900 text-white px-3 py-2 rounded-xl text-xs font-black">Reset</button>
         </div>
       </header>
 
@@ -128,7 +128,7 @@ export default function DisplayPage() {
 
               <button
                 disabled={!bothReady}
-                onClick={() => { startCountdown(code); setCountdownKey(k=>k+1); }}
+                onClick={() => { void startCountdown(code).then(()=>setCountdownKey(k=>k+1)); }}
                 className="w-full bg-sky-500 hover:bg-sky-600 disabled:bg-slate-200 disabled:text-slate-400 text-white font-black py-4 rounded-2xl transition"
               >
                 {bothReady ? "MULAI — Countdown 3-2-1" : "Menunggu Pemain..."}
@@ -139,7 +139,7 @@ export default function DisplayPage() {
           </div>
         </section>
       ) : room.status === "countdown" ? (
-        <Countdown key={countdownKey} onDone={() => { playSound("start"); startRound(code); }} />
+        <Countdown key={countdownKey} onDone={() => { playSound("start"); void startRound(code); }} />
       ) : null}
 
       {(room.status === "playing" || room.status === "result" || room.status === "finished") && (
@@ -184,7 +184,7 @@ export default function DisplayPage() {
                 <div className="text-3xl font-black mt-2">{winner === "draw" ? "SERI!" : winner === "A" ? "KUBU A MENANG!" : "KUBU B MENANG!"}</div>
                 <div className="text-slate-500 font-semibold mt-1">Skor akhir: A {room.scoreA} — {room.scoreB} B</div>
                 <div className="flex justify-center gap-3 mt-4">
-                  <button onClick={() => resetRoom(code)} className="bg-sky-500 text-white font-black px-6 py-3 rounded-2xl">Main Lagi</button>
+                  <button onClick={() => void resetRoom(code)} className="bg-sky-500 text-white font-black px-6 py-3 rounded-2xl">Main Lagi</button>
                   <button onClick={() => router.push("/host")} className="bg-white border-2 border-slate-200 px-6 py-3 rounded-2xl font-black">Buat Room Baru</button>
                 </div>
               </div>

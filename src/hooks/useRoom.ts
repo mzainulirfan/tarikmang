@@ -6,17 +6,17 @@ import type { RoomState } from "@/lib/room/store";
 export function useRoom(code: string | null) {
   const [room, setRoom] = useState<RoomState | null>(null);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     if (!code) return;
-    const r = loadRoom(code);
+    const r = await loadRoom(code);
     setRoom(r);
   }, [code]);
 
   useEffect(() => {
     if (!code) return;
     refresh();
-    // poll localStorage every 400ms + BroadcastChannel
-    const id = setInterval(refresh, 400);
+    // poll every 800ms for remote, 400ms local is handled via BroadcastChannel but we poll remote slower
+    const id = setInterval(refresh, 800);
 
     let ch: BroadcastChannel | null = null;
     try {

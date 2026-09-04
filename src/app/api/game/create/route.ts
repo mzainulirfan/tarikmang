@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServiceClient } from "@/lib/supabase/server";
-import { createRoomState } from "@/lib/room/store";
+import { createRoomState } from "@/lib/room/state";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));

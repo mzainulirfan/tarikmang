@@ -2,8 +2,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useRoom } from "@/hooks/useRoom";
-import { TeamSelector } from "@/components/room/TeamSelector";
-import { AnswerGrid } from "@/components/controller/AnswerGrid";
 import { Countdown } from "@/components/game/Countdown";
 import { ConnectionStatus } from "@/components/room/ConnectionStatus";
 import { generatePlayerToken } from "@/lib/room/code";
@@ -33,7 +31,6 @@ export default function JoinPage() {
     else playSound("rope");
   }, [room?.lastResult, team]);
 
-  // restore from localStorage per PRD #35 reconnect
   useEffect(() => {
     if (!isValidCode) return;
     try {
@@ -49,7 +46,6 @@ export default function JoinPage() {
         setToken(tk);
       }
     } catch {
-      // localStorage blocked (private mode) → generate token anyway
       try {
         const tk = generatePlayerToken();
         setToken(tk);
@@ -57,7 +53,6 @@ export default function JoinPage() {
     }
   }, [code, isValidCode]);
 
-  // auto rejoin if token exists
   useEffect(() => {
     if (!room || !team || !token) return;
     if (room.players[team].token === token) return;
@@ -65,7 +60,6 @@ export default function JoinPage() {
     if (!taken) void joinTeam(code, team, token);
   }, [room, team, token, code]);
 
-  // timer sync — jangan depend `room` full biar tidak reset tiap polling
   useEffect(() => {
     if (!room || room.status !== "playing" || !room.questionStartedAt) {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -91,7 +85,6 @@ export default function JoinPage() {
   useEffect(() => {
     if (room?.status === "playing") {
       const myAns = team ? room.answers[team] : null;
-      // hanya lock jika sudah benar (menang langsung), salah boleh retry
       if (!myAns) setLocked(false);
       else if (myAns.isCorrect) setLocked(true);
       else setLocked(false);
@@ -101,18 +94,25 @@ export default function JoinPage() {
 
   if (!isValidCode) {
     return (
-      <main className="max-w-md mx-auto px-4 py-10 text-center">
-        <div className="bg-white rounded-3xl p-6 shadow">Kode room tidak valid: {rawCode || "(kosong)"} — harus 5 karakter A-Z0-9.</div>
-        <a href="/" className="mt-4 inline-block bg-sky-500 text-white font-black px-6 py-3 rounded-2xl">Kembali</a>
+      <main className="min-h-dvh grid place-items-center bg-gradient-to-br from-sky-50 to-amber-50 p-4">
+        <div className="bg-white rounded-[2rem] p-8 shadow-xl text-center max-w-sm w-full">
+          <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 grid place-items-center mx-auto text-2xl">⚠️</div>
+          <div className="mt-3 font-black text-lg">Kode tidak valid</div>
+          <div className="text-sm font-bold text-slate-500 mt-1">{rawCode || "(kosong)"} — harus 5 huruf/angka A-Z0-9</div>
+          <a href="/" className="mt-6 inline-flex bg-slate-900 text-white font-black px-6 py-3 rounded-2xl">Kembali ke Home</a>
+        </div>
       </main>
     );
   }
 
   if (!room) {
     return (
-      <main className="max-w-md mx-auto px-4 py-10 text-center">
-        <div className="bg-white rounded-3xl p-6 shadow">Memuat room {code}... Jika lama, room tidak ditemukan / expired (24 jam) atau HP offline.</div>
-        <div className="mt-3 text-xs text-slate-500">Coba buat room baru di <a href="/host" className="underline">/host</a> lalu scan lagi.</div>
+      <main className="min-h-dvh grid place-items-center bg-gradient-to-br from-sky-50 to-amber-50 p-4">
+        <div className="bg-white rounded-[2rem] p-8 shadow-xl text-center max-w-sm w-full">
+          <div className="w-14 h-14 rounded-2xl bg-sky-100 grid place-items-center mx-auto animate-pulse text-xl">⏳</div>
+          <div className="mt-3 font-black">Memuat room {code}...</div>
+          <div className="text-xs font-bold text-slate-500 mt-2">Jika lama, room tidak ditemukan / expired 24 jam. Buat baru di <a href="/host" className="underline text-sky-600">/host</a>.</div>
+        </div>
       </main>
     );
   }
@@ -141,7 +141,6 @@ export default function JoinPage() {
       setRetryMsg(null);
       playSound("correct");
     } else {
-      // salah → boleh retry langsung tanpa cooldown
       setRetryMsg(`❌ Salah! Coba lagi`);
       playSound("wrong");
       setLocked(false);
@@ -150,108 +149,170 @@ export default function JoinPage() {
   };
 
   const bothReady = !!room.players.A.token && !!room.players.B.token;
-  const isMyTeamTaken = team ? !!room.players[team].token && room.players[team].token !== token : false;
-
   const connected = !!team && !!room.players[team]?.token && room.players[team].token === token;
+  const myTeamColor = team === "A" ? "sky" : "rose";
 
   return (
-    <main className="max-w-md mx-auto px-4 py-6 min-h-dvh flex flex-col">
-      <header className="text-center">
-        <div className="text-xs font-black tracking-widest text-slate-400">TARIK ANGKA!</div>
-        <div className="text-sm font-black">GAME {code} — Room Controller</div>
-        {team && <div className={`inline-flex mt-2 px-3 py-1 rounded-full text-xs font-black ${team === "A" ? "bg-sky-100 text-sky-700" : "bg-rose-100 text-rose-700"}`}>{team === "A" ? "🔵 KUBU A" : "🔴 KUBU B"} • {token.slice(0, 6)}</div>}
-        <div className="mt-2 flex justify-center gap-2">
-          <ConnectionStatus connected={connected} team={team ? `KUBU ${team}` : undefined} />
-          <button
-            onClick={() => {
-              const v = !soundOn;
-              setSoundOn(v);
-              setSoundEnabled(v);
-            }}
-            className="text-xs font-black px-2 py-1 rounded-full border bg-white"
-          >
-            {soundOn ? "🔊" : "🔇"}
-          </button>
+    <main className="min-h-dvh bg-gradient-to-br from-sky-50 via-white to-amber-50 flex flex-col">
+      {/* Header — compact controller */}
+      <header className="sticky top-0 z-10 backdrop-blur bg-white/70 border-b border-white/60">
+        <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-slate-900 text-white grid place-items-center font-black text-xs">TA</div>
+            <div>
+              <div className="font-black text-sm leading-none">GAME {code}</div>
+              <div className="text-xs font-bold text-slate-500">Controller HP</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                const v = !soundOn;
+                setSoundOn(v);
+                setSoundEnabled(v);
+              }}
+              className="w-8 h-8 rounded-full bg-white border border-slate-200 grid place-items-center text-xs"
+            >
+              {soundOn ? "🔊" : "🔇"}
+            </button>
+          </div>
         </div>
-        {room.suddenDeath && <div className="mt-2 bg-amber-400 text-slate-900 font-black text-xs py-1.5 rounded-full animate-pulse">⚡ SUDDEN DEATH!</div>}
       </header>
 
-      {!team || !room.players[team]?.token || room.players[team].token !== token ? (
-        <section className="mt-6 bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-          <h2 className="font-black text-center">Pilih Tim</h2>
-          <p className="text-sm text-center text-slate-500 font-semibold mt-1">Hanya 1 pemain per kubu. Pilihan mengikat token.</p>
-          <div className="mt-4">
-            <TeamSelector selected={team} takenA={!!room.players.A.token} takenB={!!room.players.B.token} onSelect={handleSelect} />
-          </div>
-          <div className="mt-4 text-xs text-center text-slate-500">
-            {room.players.A.token ? "🔵 A terisi" : "🔵 A kosong"} • {room.players.B.token ? "🔴 B terisi" : "🔴 B kosong"}
-          </div>
-        </section>
-      ) : room.status === "waiting" || room.status === "ready" ? (
-        <section className="mt-6 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center">
-          <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center text-2xl ${team === "A" ? "bg-sky-100" : "bg-rose-100"}`}>{team === "A" ? "🔵" : "🔴"}</div>
-          <div className="mt-3 font-black">KUBU {team} — ✓ TERHUBUNG</div>
-          <div className="text-sm text-slate-500 font-semibold mt-1">{bothReady ? "Kedua tim siap! Menunggu host mulai..." : "Menunggu Kubu lawan bergabung..."}</div>
-          <div className="mt-4 text-xs font-mono bg-slate-50 rounded-xl p-3">Token: {token} • Reconnect otomatis aktif</div>
-          <button onClick={() => { localStorage.removeItem(`tarikmang:player:${code}`); setTeam(null); }} className="mt-4 text-xs font-black text-slate-500 underline">Ganti Tim</button>
-        </section>
-      ) : room.status === "countdown" ? (
-        <Countdown onDone={() => {}} />
-      ) : room.status === "playing" || room.status === "result" ? (
-        <section className="mt-4 flex-1 flex flex-col">
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100">
-            <div className="flex justify-between items-center">
-              <span className="text-xs font-black tracking-widest text-slate-400">ROUND {room.round} / {room.config.totalRounds}</span>
-              <span className={`rounded-full px-3 py-1 text-xs font-black ${timeLeft <= 3 ? "bg-rose-100 text-rose-700 animate-pulse" : "bg-amber-100 text-amber-700"}`}>⏱ {timeLeft.toFixed(1)} dtk</span>
+      <div className="flex-1 max-w-md mx-auto w-full px-4 py-4 flex flex-col">
+        {/* Team badge + connection */}
+        {team && (
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-black ${team === "A" ? "bg-sky-500 text-white" : "bg-rose-500 text-white"}`}>
+              {team === "A" ? "🔵 KUBU A" : "🔴 KUBU B"} • {token.slice(0, 6)}
             </div>
-            {room.question ? (
-              <>
-                <div className="mt-3 text-4xl font-black text-center text-slate-900">{room.question.text}</div>
-                <div className="mt-4">
-                  <AnswerGrid options={room.question.options} disabled={locked} onAnswer={handleAnswer} />
-                </div>
-              </>
-            ) : (
-              <div className="text-center text-slate-400 font-black">Memuat soal...</div>
-            )}
+            <ConnectionStatus connected={connected} team={team ? `KUBU ${team}` : undefined} />
+          </div>
+        )}
+        {room.suddenDeath && <div className="mb-3 bg-amber-400 text-slate-900 font-black text-xs py-2 rounded-full text-center animate-pulse">⚡ SUDDEN DEATH!</div>}
 
-            <div className="mt-4 text-center min-h-6">
-              {retryMsg && room.status === "playing" && <div className="text-sm font-black text-amber-600 animate-shake">{retryMsg}</div>}
-              {room.answers[team!]?.isCorrect && room.status === "result" && (
-                <div className="text-sm font-black text-green-600">🎉 BENAR! ({(room.answers[team!]!.responseMs / 1000).toFixed(1)}s) — Menunggu next...</div>
-              )}
-              {room.answers[team!] && !room.answers[team!]!.isCorrect && room.status === "result" && (
-                <div className="text-sm font-black text-rose-600">❌ SALAH — Jawaban: {room.question?.answer}</div>
-              )}
-              {!room.answers[team!] && room.status === "result" && <div className="text-sm font-black text-amber-600">⏰ Tidak menjawab — Seri</div>}
+        {/* PILIH TIM */}
+        {!team || !room.players[team]?.token || room.players[team].token !== token ? (
+          <section className="flex-1 flex flex-col">
+            <div className="text-center">
+              <h1 className="text-2xl font-black text-slate-900">Pilih Tim</h1>
+              <p className="text-sm font-bold text-slate-500 mt-1">Hanya 1 pemain per kubu • Tap kartu</p>
             </div>
-
-            {room.lastResult && (
-              <div className={`mt-2 text-center text-sm font-black ${room.lastResult.winner === team ? "text-green-600" : room.lastResult.winner === "draw" ? "text-slate-500" : "text-slate-400"}`}>
-                {room.lastResult.winner === "draw" ? "🤝 Seri — tali diam" : room.lastResult.winner === team ? "🏳️ KUBU KAMU MENARIK!" : "Tali ditarik lawan"}
-                <div className="text-xs font-semibold text-slate-500">{room.lastResult.text}</div>
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              {[
+                { t: "A" as Team, icon: "🧒", bg: "bg-sky-500", light: "bg-sky-50", border: "border-sky-200", label: "KUBU A" },
+                { t: "B" as Team, icon: "👧", bg: "bg-rose-500", light: "bg-rose-50", border: "border-rose-200", label: "KUBU B" },
+              ].map((c) => {
+                const taken = !!room.players[c.t].token;
+                const selected = team === c.t;
+                return (
+                  <button
+                    key={c.t}
+                    disabled={taken}
+                    onClick={() => handleSelect(c.t)}
+                    className={`relative rounded-[1.7rem] border-2 p-5 text-center transition active:scale-[0.98] ${taken ? "bg-slate-100 border-slate-200 opacity-60" : selected ? `${c.bg} border-transparent text-white shadow-lg` : `${c.light} ${c.border} hover:border-slate-300`}`}
+                  >
+                    <div className={`w-16 h-16 rounded-2xl grid place-items-center mx-auto text-3xl ${taken ? "bg-slate-200" : c.bg + " text-white"}`}>{c.icon}</div>
+                    <div className={`mt-3 font-black ${taken ? "text-slate-500" : selected ? "text-white" : "text-slate-900"}`}>{c.label}</div>
+                    <div className={`text-xs font-bold ${taken ? "text-rose-600" : selected ? "text-white/80" : "text-slate-500"}`}>{taken ? "TERISI" : "TAP UNTUK JOIN"}</div>
+                    {selected && !taken && <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white text-slate-900 grid place-items-center text-xs">✓</div>}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 rounded-2xl bg-white border border-slate-100 p-3 flex justify-between text-xs font-black">
+              <span className={room.players.A.token ? "text-sky-600" : "text-slate-400"}>🔵 A {room.players.A.token ? "Terisi" : "Kosong"}</span>
+              <span className={room.players.B.token ? "text-rose-600" : "text-slate-400"}>🔴 B {room.players.B.token ? "Terisi" : "Kosong"}</span>
+            </div>
+            <div className="mt-auto pt-4 text-center text-xs font-bold text-slate-400">Token anti-rebut • Reconnect otomatis</div>
+          </section>
+        ) : room.status === "waiting" || room.status === "ready" ? (
+          <section className="flex-1 flex flex-col items-center justify-center text-center">
+            <div className={`w-24 h-24 rounded-[1.7rem] grid place-items-center text-5xl shadow-lg ${team === "A" ? "bg-sky-500" : "bg-rose-500"} text-white animate-pulse`}>{team === "A" ? "🧒" : "👧"}</div>
+            <h2 className="mt-4 text-2xl font-black">KUBU {team} — TERHUBUNG</h2>
+            <div className={`mt-2 inline-flex px-3 py-1 rounded-full text-xs font-black ${connected ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{connected ? "● TERHUBUNG" : "● MENYAMBUNG..."}</div>
+            <p className="mt-3 text-sm font-bold text-slate-500 max-w-xs">{bothReady ? "Kedua tim siap! Menunggu host menekan MULAI di layar besar..." : "Menunggu kubu lawan bergabung — minta teman scan QR yang sama."}</p>
+            <div className="mt-4 w-full bg-white border border-slate-100 rounded-2xl p-3 flex items-center justify-between">
+              <span className="text-xs font-black tracking-widest text-slate-500">ROOM {code}</span>
+              <span className="text-xs font-mono font-bold bg-slate-900 text-white px-2 py-1 rounded-full">{token.slice(0, 8)}</span>
+            </div>
+            <button onClick={() => { try { localStorage.removeItem(`tarikmang:player:${code}`); } catch {}; setTeam(null); }} className="mt-3 text-xs font-black text-slate-400 underline">
+              Ganti Tim
+            </button>
+          </section>
+        ) : room.status === "countdown" ? (
+          <div className="flex-1 grid place-items-center">
+            <Countdown onDone={() => {}} />
+            <div className="absolute bottom-6 text-xs font-black tracking-widest text-slate-500">SIAP-SIAP DI HP...</div>
+          </div>
+        ) : room.status === "playing" || room.status === "result" ? (
+          <section className="flex-1 flex flex-col">
+            <div className="bg-white rounded-[1.7rem] border border-white shadow-sm p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black tracking-widest text-slate-400">RONDE {room.round} / {room.config.totalRounds}</span>
+                <span className={`px-3 py-1.5 rounded-full text-sm font-black ${timeLeft <= 3 ? "bg-rose-500 text-white animate-pulse" : "bg-slate-900 text-white"}`}>⏱ {timeLeft.toFixed(1)}s</span>
               </div>
-            )}
-          </div>
+              {room.question ? (
+                <>
+                  <div className="mt-3 text-5xl font-black text-center tracking-tight text-slate-900">{room.question.text}</div>
+                  <div className="mt-1 text-center">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-black ${myTeamColor === "sky" ? "bg-sky-100 text-sky-700" : "bg-rose-100 text-rose-700"}`}>KUBU {team}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-6 text-center font-black text-slate-400">Menyiapkan soal...</div>
+              )}
+            </div>
 
-          <div className="mt-3 bg-slate-900 text-white rounded-2xl p-3 flex justify-between text-xs font-black">
-            <span>🔵 A {room.scoreA}</span>
-            <span>—</span>
-            <span>🔴 B {room.scoreB}</span>
-          </div>
-        </section>
-      ) : room.status === "finished" ? (
-        <section className="mt-6 bg-white rounded-3xl p-6 shadow-sm border border-slate-100 text-center">
-          <div className="text-6xl">{room.scoreA === room.scoreB ? "🤝" : (room.scoreA > room.scoreB ? (team === "A" ? "🏆" : "😢") : (team === "B" ? "🏆" : "😢"))}</div>
-          <div className="mt-2 font-black text-xl">{room.scoreA === room.scoreB ? "SERI!" : room.scoreA > room.scoreB ? "KUBU A MENANG!" : "KUBU B MENANG!"}</div>
-          <div className="text-sm text-slate-500 font-semibold mt-1">Skor akhir: A {room.scoreA} — {room.scoreB} B</div>
-          <div className={`mt-3 inline-flex px-3 py-1 rounded-full text-xs font-black ${team === "A" ? "bg-sky-100 text-sky-700" : "bg-rose-100 text-rose-700"}`}>Kamu: KUBU {team}</div>
-          <button onClick={() => setTeam(null)} className="mt-4 w-full bg-slate-900 text-white font-black py-3 rounded-2xl">Keluar / Ganti Tim</button>
-        </section>
-      ) : null}
+            {/* Answer grid — large tap targets 64-80px */}
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              {room.question?.options.map((opt) => (
+                <button
+                  key={opt}
+                  disabled={locked}
+                  onClick={() => handleAnswer(opt)}
+                  className={`rounded-[1.5rem] border-2 py-5 md:py-6 text-2xl md:text-3xl font-black shadow-sm active:scale-[0.97] transition disabled:opacity-50 disabled:scale-100 ${locked ? "bg-slate-100 border-slate-200 text-slate-400" : team === "A" ? "bg-white border-sky-200 hover:border-sky-400 hover:bg-sky-50 active:bg-sky-100" : "bg-white border-rose-200 hover:border-rose-400 hover:bg-rose-50 active:bg-rose-100"}`}
+                >
+                  {opt}
+                </button>
+              )) ?? null}
+            </div>
 
-      <div className="mt-auto pt-6 text-center text-xs text-slate-400 font-semibold">
-        {room.status === "playing" ? "Jawab cepat & benar — tercepat menang!" : "Server authority: validasi di host display"}
+            <div className="mt-3 min-h-[28px] text-center">
+              {retryMsg && room.status === "playing" && <div className="inline-flex bg-amber-100 text-amber-800 border border-amber-200 px-3 py-1.5 rounded-full text-sm font-black animate-shake">{retryMsg}</div>}
+              {room.answers[team!]?.isCorrect && room.status === "result" && <div className="text-sm font-black text-emerald-600">🎉 BENAR! Menunggu next...</div>}
+              {room.lastResult && room.status === "result" && (
+                <div className={`mt-2 text-sm font-black ${room.lastResult.winner === team ? "text-emerald-600" : room.lastResult.winner === "draw" ? "text-slate-500" : "text-slate-400"}`}>
+                  {room.lastResult.winner === "draw" ? "🤝 Seri" : room.lastResult.winner === team ? "🏳️ Kamu menarik!" : "Ditarik lawan"}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-auto pt-3 flex items-center justify-between text-xs font-black">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-sky-500" /> A {room.scoreA}
+                <span className="opacity-30">—</span>
+                <span className="w-2 h-2 rounded-full bg-rose-500" /> B {room.scoreB}
+              </div>
+              <span className="text-slate-400">{room.config.durationSec}s/soal</span>
+            </div>
+          </section>
+        ) : room.status === "finished" ? (
+          <section className="flex-1 flex flex-col items-center justify-center text-center">
+            <div className="w-28 h-28 rounded-[2rem] bg-white border border-slate-100 shadow-lg grid place-items-center text-6xl">{room.scoreA === room.scoreB ? "🤝" : (room.scoreA > room.scoreB ? (team === "A" ? "🏆" : "😢") : (team === "B" ? "🏆" : "😢"))}</div>
+            <h2 className="mt-4 text-3xl font-black">{room.scoreA === room.scoreB ? "SERI!" : room.scoreA > room.scoreB ? "KUBU A MENANG!" : "KUBU B MENANG!"}</h2>
+            <div className="mt-1 inline-flex bg-slate-900 text-white px-3 py-1.5 rounded-full text-sm font-black">Skor {room.scoreA} — {room.scoreB}</div>
+            <div className="mt-2 text-sm font-bold text-slate-500">Kamu: KUBU {team} • Ronde {room.round}</div>
+            <button onClick={() => { try { localStorage.removeItem(`tarikmang:player:${code}`); } catch {}; setTeam(null); }} className="mt-6 w-full bg-white border-2 border-slate-200 font-black py-3 rounded-2xl">
+              Main Lagi — Ganti Tim
+            </button>
+            <a href="/" className="mt-2 text-xs font-black text-slate-400 underline">
+              Kembali ke Home
+            </a>
+          </section>
+        ) : null}
+
+        <div className="mt-4 text-center text-xs font-bold text-slate-400">Tap jawaban besar — 64px • Salah boleh tap lagi seketika</div>
       </div>
     </main>
   );

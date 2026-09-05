@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useRoom } from "@/hooks/useRoom";
+import { AnswerGrid } from "@/components/controller/AnswerGrid";
 import { Countdown } from "@/components/game/Countdown";
 import { ConnectionStatus } from "@/components/room/ConnectionStatus";
 import { generatePlayerToken } from "@/lib/room/code";
@@ -26,9 +27,16 @@ export default function JoinPage() {
   useEffect(() => setSoundOn(isSoundEnabled()), []);
   useEffect(() => {
     if (!room?.lastResult) return;
-    if (room.lastResult.winner === team) playSound("correct");
-    else if (room.lastResult.winner === "draw") playSound("wrong");
-    else playSound("rope");
+    if (room.lastResult.winner === team) {
+      playSound("correct");
+      if (navigator.vibrate) navigator.vibrate(60);
+    } else if (room.lastResult.winner === "draw") {
+      playSound("wrong");
+      if (navigator.vibrate) navigator.vibrate([20, 30, 20]);
+    } else {
+      playSound("rope");
+      if (navigator.vibrate) navigator.vibrate(35);
+    }
   }, [room?.lastResult, team]);
 
   useEffect(() => {
@@ -128,6 +136,7 @@ export default function JoinPage() {
         localStorage.setItem(`tarikmang:player:${code}`, JSON.stringify({ team: t, token }));
       } catch {}
       playSound("join");
+      if (navigator.vibrate) navigator.vibrate(30);
     }
   };
 
@@ -140,9 +149,11 @@ export default function JoinPage() {
       setLocked(true);
       setRetryMsg(null);
       playSound("correct");
+      if (navigator.vibrate) navigator.vibrate(50);
     } else {
       setRetryMsg(`❌ Salah! Coba lagi`);
       playSound("wrong");
+      if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
       setLocked(false);
       setTimeout(() => setRetryMsg(null), 800);
     }
@@ -265,17 +276,8 @@ export default function JoinPage() {
             </div>
 
             {/* Answer grid — large tap targets 64-80px */}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              {room.question?.options.map((opt) => (
-                <button
-                  key={opt}
-                  disabled={locked}
-                  onClick={() => handleAnswer(opt)}
-                  className={`rounded-[1.5rem] border-2 py-5 md:py-6 text-2xl md:text-3xl font-black shadow-sm active:scale-[0.97] transition disabled:opacity-50 disabled:scale-100 ${locked ? "bg-slate-100 border-slate-200 text-slate-400" : team === "A" ? "bg-white border-sky-200 hover:border-sky-400 hover:bg-sky-50 active:bg-sky-100" : "bg-white border-rose-200 hover:border-rose-400 hover:bg-rose-50 active:bg-rose-100"}`}
-                >
-                  {opt}
-                </button>
-              )) ?? null}
+            <div className="mt-4">
+              <AnswerGrid options={room.question?.options ?? []} disabled={locked} onAnswer={handleAnswer} team={team ?? undefined} />
             </div>
 
             <div className="mt-3 min-h-[28px] text-center">

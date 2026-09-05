@@ -216,9 +216,9 @@ export default function DisplayPage() {
             </div>
           </div>
 
-          {/* Arena — taller for display */}
+          {/* Arena — taller for display, interactive spring */}
           <div className="mt-4 rounded-[2rem] overflow-hidden border border-white shadow-[0_18px_45px_rgba(15,23,42,.08)]">
-            <TugArena scoreA={room.scoreA} scoreB={room.scoreB} />
+            <TugArena scoreA={room.scoreA} scoreB={room.scoreB} lastWinner={room.lastResult?.winner ?? null} />
           </div>
 
           {/* Question — huge for distance */}

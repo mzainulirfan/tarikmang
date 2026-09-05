@@ -8,12 +8,13 @@ export function Countdown({ onDone }: { onDone: () => void }) {
     onDoneRef.current = onDone;
   }, [onDone]);
 
+  // dipersingkat: 600ms per angka, GO 400ms (total ~2.2s dari sebelumnya 3.3s)
   useEffect(() => {
     if (n === 0) {
-      const t = setTimeout(() => onDoneRef.current(), 600);
+      const t = setTimeout(() => onDoneRef.current(), 400);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setN((v) => v - 1), 900);
+    const t = setTimeout(() => setN((v) => v - 1), 600);
     return () => clearTimeout(t);
   }, [n]);
 

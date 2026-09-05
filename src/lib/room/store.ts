@@ -199,25 +199,28 @@ export async function nextRoundOrFinish(code: string): Promise<RoomState | null>
   const room = await loadRoom(code);
   if (!room) return null;
   if (room.status !== "result") return room;
+  // flow baru: 321 hanya di awal, antar ronde langsung next question tanpa countdown (seketika)
   if (room.round >= room.config.totalRounds) {
     if (room.scoreA === room.scoreB) {
       room.suddenDeath = true;
       room.round += 1;
-      room.question = null;
-      room.questionStartedAt = null;
+      const q = generateQuestion(room.config.difficulty, room.config.operation);
+      room.question = q;
+      room.questionStartedAt = Date.now();
       room.answers = { A: null, B: null };
       room.lastResult = { winner: "draw", text: "SUDDEN DEATH! Ronde penentuan — yang benar & tercepat langsung menang!" };
-      room.status = "countdown";
+      room.status = "playing";
       await saveRoom(room);
       return room;
     }
     if (room.suddenDeath && room.lastResult?.winner === "draw") {
       room.round += 1;
-      room.question = null;
-      room.questionStartedAt = null;
+      const q = generateQuestion(room.config.difficulty, room.config.operation);
+      room.question = q;
+      room.questionStartedAt = Date.now();
       room.answers = { A: null, B: null };
       room.lastResult = { winner: "draw", text: "SUDDEN DEATH berlanjut!" };
-      room.status = "countdown";
+      room.status = "playing";
       await saveRoom(room);
       return room;
     }
@@ -230,12 +233,14 @@ export async function nextRoundOrFinish(code: string): Promise<RoomState | null>
     await saveRoom(room);
     return room;
   }
+  // normal next: langsung playing dengan soal baru, tanpa countdown
   room.round += 1;
-  room.question = null;
-  room.questionStartedAt = null;
+  const q = generateQuestion(room.config.difficulty, room.config.operation);
+  room.question = q;
+  room.questionStartedAt = Date.now();
   room.answers = { A: null, B: null };
   room.lastResult = null;
-  room.status = "countdown";
+  room.status = "playing";
   await saveRoom(room);
   return room;
 }

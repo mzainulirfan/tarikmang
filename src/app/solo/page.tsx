@@ -75,9 +75,9 @@ export default function Home() {
         if (next <= 0) {
           clearTimer();
           setLocked(true);
-          setMessage("⏰ Waktu habis! Tidak ada yang menarik.");
+          setMessage("⏰ Waktu habis! Lanjut pertanyaan berikutnya...");
           setMsgType("wrong");
-          setTimeout(() => nextRound(null), 800);
+          setTimeout(() => nextRound(null), 0);
           return 0;
         }
         return next;
@@ -119,12 +119,12 @@ export default function Home() {
     if (status !== "playing" || locked || !question) return;
     const isCorrect = choice === question.answer;
     if (isCorrect) {
-      // benar → langsung next (tanpa tunggu bot), delay pendek 900ms
+      // benar → langsung next seketika (tanpa 321, tanpa delay)
       setLocked(true);
       clearTimer();
       const playerMs = Date.now() - startedAtRef.current;
       setScoreA((s) => s + 1);
-      setMessage(`🎯 BENAR! (${(playerMs / 1000).toFixed(1)}s) Kubu A menarik 1 langkah!`);
+      setMessage(`🎯 BENAR! (${(playerMs / 1000).toFixed(1)}s) Kubu A menarik!`);
       setMsgType("a");
       setTimeout(() => {
         if (round >= totalRounds) {
@@ -134,18 +134,16 @@ export default function Home() {
           setRound((r) => r + 1);
           makeNextQuestion();
           setLocked(false);
-          setMessage("Ronde berikutnya...");
+          setMessage("Lanjut pertanyaan berikutnya...");
           setMsgType("neutral");
           setTimeLeft(durationSec);
         }
-      }, 900);
+      }, 0);
     } else {
-      // salah → boleh retry, kedua tim (kamu & bot) masih bisa jawab
-      setMessage(`❌ Salah! Coba lagi — ${choice} bukan ${question.answer}`);
+      // salah → boleh retry langsung tanpa cooldown
+      setMessage(`❌ Salah! Coba lagi`);
       setMsgType("wrong");
-      // cooldown 500ms biar ada feedback shake, tetap playing & timer jalan
-      setLocked(true);
-      setTimeout(() => setLocked(false), 500);
+      setLocked(false);
     }
   };
 

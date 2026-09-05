@@ -141,14 +141,11 @@ export default function JoinPage() {
       setRetryMsg(null);
       playSound("correct");
     } else {
-      // salah → boleh retry, kasih feedback & cooldown 500ms
-      setRetryMsg(`❌ Salah! Coba lagi — jawaban ${choice} salah`);
+      // salah → boleh retry langsung tanpa cooldown
+      setRetryMsg(`❌ Salah! Coba lagi`);
       playSound("wrong");
-      setLocked(true);
-      setTimeout(() => {
-        setLocked(false);
-        setRetryMsg(null);
-      }, 500);
+      setLocked(false);
+      setTimeout(() => setRetryMsg(null), 800);
     }
   };
 

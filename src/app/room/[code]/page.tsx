@@ -56,7 +56,7 @@ export default function DisplayPage() {
     return () => clearTimeout(t);
   }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code]);
 
-  // auto handle result -> nextRound cepat jika benar, sedikit delay jika seri (jangan depend `room` full biar tidak reset polling)
+  // flow baru: result → next seketika (tanpa delay, tanpa 321)
   useEffect(() => {
     if (!room) return;
     if (room.status === "result" && room.lastResult) {
@@ -67,8 +67,8 @@ export default function DisplayPage() {
       } else {
         playSound("wrong");
       }
-      const delay = isWin ? 900 : 1200;
-      const t = setTimeout(() => void nextRoundOrFinish(code), delay);
+      // next seketika (0ms) — tampilkan result sebentar via polling 400ms sudah cukup
+      const t = setTimeout(() => void nextRoundOrFinish(code), 0);
       return () => clearTimeout(t);
     }
     if (room.status === "finished") {

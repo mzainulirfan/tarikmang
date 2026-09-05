@@ -25,7 +25,7 @@ export default function DisplayPage() {
 
   useEffect(() => setSoundOn(isSoundEnabled()), []);
 
-  // timer for playing state
+  // timer for playing state — jangan depend ke `room` full biar tidak reset tiap polling 400ms
   useEffect(() => {
     if (!room || room.status !== "playing" || !room.questionStartedAt) {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -47,7 +47,14 @@ export default function DisplayPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code, room]);
+  }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code]);
+
+  // fallback: jika playing terlalu lama (tab throttled) paksa timeout setelah duration+1s
+  useEffect(() => {
+    if (!room || room.status !== "playing" || !room.questionStartedAt) return;
+    const t = setTimeout(() => void handleTimeout(code), (room.config.durationSec + 1) * 1000);
+    return () => clearTimeout(t);
+  }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code]);
 
   // auto handle result -> nextRound cepat jika benar, sedikit delay jika seri
   useEffect(() => {
@@ -174,9 +181,12 @@ export default function DisplayPage() {
             )}
 
             {room.status === "playing" && (
-              <div className="mt-3 flex justify-center gap-4 text-xs font-bold">
-                <span className={room.answers.A ? "text-green-600" : "text-slate-400"}>🔵 A {room.answers.A ? "✓ menjawab" : "… menunggu"}</span>
-                <span className={room.answers.B ? "text-green-600" : "text-slate-400"}>🔴 B {room.answers.B ? "✓ menjawab" : "… menunggu"}</span>
+              <div className="mt-3 flex flex-col items-center gap-2">
+                <div className="flex justify-center gap-4 text-xs font-bold">
+                  <span className={room.answers.A ? "text-green-600" : "text-slate-400"}>🔵 A {room.answers.A ? "✓ menjawab" : "… menunggu"}</span>
+                  <span className={room.answers.B ? "text-green-600" : "text-slate-400"}>🔴 B {room.answers.B ? "✓ menjawab" : "… menunggu"}</span>
+                </div>
+                <button onClick={() => void handleTimeout(code)} className="text-xs font-black text-slate-500 underline">⏭ Lewati (paksa next jika diam)</button>
               </div>
             )}
 

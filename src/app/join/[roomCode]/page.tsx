@@ -65,7 +65,7 @@ export default function JoinPage() {
     if (!taken) void joinTeam(code, team, token);
   }, [room, team, token, code]);
 
-  // timer sync to room.questionStartedAt
+  // timer sync — jangan depend `room` full biar tidak reset tiap polling
   useEffect(() => {
     if (!room || room.status !== "playing" || !room.questionStartedAt) {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -86,7 +86,7 @@ export default function JoinPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code, room]);
+  }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code]);
 
   useEffect(() => {
     if (room?.status === "playing") {

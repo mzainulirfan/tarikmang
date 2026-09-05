@@ -15,8 +15,8 @@ export function useRoom(code: string | null) {
   useEffect(() => {
     if (!code) return;
     refresh();
-    // poll every 800ms for remote, 400ms local is handled via BroadcastChannel but we poll remote slower
-    const id = setInterval(refresh, 800);
+    // percepat polling 400ms agar timeout/nextRound terasa langsung (sebelumnya 800ms terasa diam)
+    const id = setInterval(refresh, 400);
 
     let ch: BroadcastChannel | null = null;
     try {

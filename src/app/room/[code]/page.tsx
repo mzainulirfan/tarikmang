@@ -56,7 +56,7 @@ export default function DisplayPage() {
     return () => clearTimeout(t);
   }, [room?.status, room?.questionStartedAt, room?.config.durationSec, code]);
 
-  // auto handle result -> nextRound cepat jika benar, sedikit delay jika seri
+  // auto handle result -> nextRound cepat jika benar, sedikit delay jika seri (jangan depend `room` full biar tidak reset polling)
   useEffect(() => {
     if (!room) return;
     if (room.status === "result" && room.lastResult) {
@@ -67,7 +67,7 @@ export default function DisplayPage() {
       } else {
         playSound("wrong");
       }
-      const delay = isWin ? 1200 : 1500; // perbaiki delay: benar langsung next 1.2s, seri 1.5s (sebelumnya 2.2s)
+      const delay = isWin ? 900 : 1200;
       const t = setTimeout(() => void nextRoundOrFinish(code), delay);
       return () => clearTimeout(t);
     }
@@ -78,7 +78,7 @@ export default function DisplayPage() {
     if (room.status === "countdown") {
       playSound("countdown");
     }
-  }, [room?.status, room?.lastResult, code, room]);
+  }, [room?.status, room?.lastResult?.winner, room?.lastResult?.text, code]);
 
   if (!room) {
     return (

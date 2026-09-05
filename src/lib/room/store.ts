@@ -121,28 +121,44 @@ export async function startRound(code: string): Promise<RoomState | null> {
 }
 
 export async function submitAnswer(code: string, team: Team, answer: number, token: string): Promise<RoomState | null> {
+  // jika remote (Supabase) → pakai server timestamp biar fair barengan pencet
+  if (isRemote()) {
+    try {
+      const res = await fetch(`/api/game/${code}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ team, answer, token }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.state) {
+        saveLocal(json.state as RoomState);
+        return json.state as RoomState;
+      }
+      // jika 409 time expired atau sudah correct, tetap refresh dari server
+      if (json.state) return json.state as RoomState;
+      // fallback load
+      return loadRoom(code);
+    } catch {
+      // fallback local jika API gagal
+    }
+  }
+
+  // fallback local (untuk dev tanpa Supabase / offline)
   const room = await loadRoom(code);
   if (!room || room.status !== "playing" || !room.question || !room.questionStartedAt) return null;
   if (room.players[team].token !== token) return null;
-  // allow retry if previous answer was wrong — only block if already correct
   if (room.answers[team]?.isCorrect) return room;
   const now = Date.now();
   const responseMs = now - room.questionStartedAt;
   if (responseMs > room.config.durationSec * 1000) return room;
   const isCorrect = answer === room.question.answer;
-
-  // if correct → langsung menang & next question (tanpa tunggu lawan)
   if (isCorrect) {
     room.answers[team] = { answer, isCorrect, responseMs };
-    // simpan dulu sebelum resolve agar responseMs tercatat
     await saveRoom(room);
     return resolveRoundImmediate(code, team);
   }
-
-  // if wrong → tetap playing, boleh retry (baik A maupun B)
   room.answers[team] = { answer, isCorrect, responseMs };
   await saveRoom(room);
-  // jangan resolve, biarkan kedua tim bisa coba lagi sampai ada yang benar atau timeout
   return room;
 }
 

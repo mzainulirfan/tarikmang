@@ -15,8 +15,8 @@ export function useRoom(code: string | null) {
   useEffect(() => {
     if (!code) return;
     refresh();
-    // percepat polling 400ms agar timeout/nextRound terasa langsung (sebelumnya 800ms terasa diam)
-    const id = setInterval(refresh, 400);
+    // percepat polling 200ms untuk fairness barengan pencet (server timestamp jadi penentu, polling hanya sync)
+    const id = setInterval(refresh, 200);
 
     let ch: BroadcastChannel | null = null;
     try {

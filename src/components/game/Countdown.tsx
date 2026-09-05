@@ -1,17 +1,21 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export function Countdown({ onDone }: { onDone: () => void }) {
   const [n, setN] = useState(3);
+  const onDoneRef = useRef(onDone);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  }, [onDone]);
 
   useEffect(() => {
     if (n === 0) {
-      const t = setTimeout(onDone, 600);
+      const t = setTimeout(() => onDoneRef.current(), 600);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => setN((v) => v - 1), 900);
     return () => clearTimeout(t);
-  }, [n, onDone]);
+  }, [n]);
 
   return (
     <div className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center">

@@ -22,6 +22,7 @@ export default function JoinPage() {
   const [timeLeft, setTimeLeft] = useState(10);
   const [locked, setLocked] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [retryMsg, setRetryMsg] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => setSoundOn(isSoundEnabled()), []);
@@ -123,12 +124,13 @@ export default function JoinPage() {
     const res = await joinTeam(code, t, token);
     if (res) {
       setTeam(t);
-      localStorage.setItem(`tarikmang:player:${code}`, JSON.stringify({ team: t, token }));
+      try {
+        localStorage.setItem(`tarikmang:player:${code}`, JSON.stringify({ team: t, token }));
+      } catch {}
       playSound("join");
     }
   };
 
-  const [retryMsg, setRetryMsg] = useState<string | null>(null);
   const handleAnswer = async (choice: number) => {
     if (!team || !room.question || locked) return;
     const isCorrect = choice === room.question.answer;

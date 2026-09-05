@@ -7,9 +7,9 @@ export function AnswerGrid({
   onAnswer,
   team,
 }: {
-  options: number[];
+  options: (string | number)[];
   disabled: boolean;
-  onAnswer: (v: number) => void;
+  onAnswer: (v: string | number) => void;
   team?: "A" | "B";
 }) {
   const isA = team === "A";

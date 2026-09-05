@@ -6,6 +6,8 @@ export type RoomConfig = {
   operation: Operation;
   totalRounds: number;
   durationSec: number;
+  source?: "auto" | "bank";
+  bankId?: string | null;
 };
 
 export type RoomState = {
@@ -18,9 +20,11 @@ export type RoomState = {
   question: Question | null;
   questionStartedAt: number | null;
   players: Record<Team, { token: string | null; connected: boolean }>;
-  answers: Record<Team, { answer: number; isCorrect: boolean; responseMs: number } | null>;
+  answers: Record<Team, { answer: string | number; isCorrect: boolean; responseMs: number } | null>;
   lastResult: { winner: Team | "draw"; text: string } | null;
   suddenDeath: boolean;
+  usedQuestionIds: string[];
+  customQuestions?: { id: string; question: string; options: string[]; correct_answer: string }[];
   createdAt: number;
   expiresAt: number;
 };
@@ -31,7 +35,7 @@ export function createRoomState(code: string, config: RoomConfig): RoomState {
   const now = Date.now();
   return {
     code,
-    config,
+    config: { source: "auto", bankId: null, ...config },
     status: "waiting",
     round: 1,
     scoreA: 0,
@@ -42,6 +46,7 @@ export function createRoomState(code: string, config: RoomConfig): RoomState {
     answers: { A: null, B: null },
     lastResult: null,
     suddenDeath: false,
+    usedQuestionIds: [],
     createdAt: now,
     expiresAt: now + ROOM_TTL_MS,
   };

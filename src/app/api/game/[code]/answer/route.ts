@@ -5,8 +5,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ code: s
   const { code } = await params;
   const upper = code.toUpperCase();
   const body = await req.json().catch(() => ({}));
-  const { team, answer, token } = body as { team?: string; answer?: number; token?: string };
-  if (!team || typeof answer !== "number" || !token) {
+  const { team, answer, token } = body as { team?: string; answer?: number | string; token?: string };
+  if (!team || answer === undefined || answer === null || !token) {
     return NextResponse.json({ error: "team, answer, token required" }, { status: 400 });
   }
   if (team !== "A" && team !== "B") return NextResponse.json({ error: "team must be A or B" }, { status: 400 });

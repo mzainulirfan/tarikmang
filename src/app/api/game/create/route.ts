@@ -4,7 +4,7 @@ import { createRoomState } from "@/lib/room/state";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const { difficulty = "mudah", operation = "campuran", totalRounds = 10, durationSec = 10 } = body;
+  const { difficulty = "mudah", operation = "campuran", totalRounds = 10, durationSec = 10, source = "auto", bankId = null, customQuestions = null } = body;
 
   const supa = getServiceClient();
   // generate unique code
@@ -20,7 +20,10 @@ export async function POST(req: Request) {
     attempts++;
   }
 
-  const state = createRoomState(code, { difficulty, operation, totalRounds, durationSec });
+  const state: any = createRoomState(code, { difficulty, operation, totalRounds, durationSec, source, bankId });
+  if (customQuestions && Array.isArray(customQuestions) && customQuestions.length > 0) {
+    state.customQuestions = customQuestions;
+  }
 
   if (supa) {
     const payload = {

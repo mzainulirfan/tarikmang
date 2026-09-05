@@ -115,9 +115,9 @@ export default function Home() {
     void q;
   };
 
-  const handleAnswer = (choice: number) => {
+  const handleAnswer = (choice: string | number) => {
     if (status !== "playing" || locked || !question) return;
-    const isCorrect = choice === question.answer;
+    const isCorrect = String(choice).trim() === String(question.answer).trim();
     if (isCorrect) {
       // benar → langsung next seketika (tanpa 321, tanpa delay)
       setLocked(true);

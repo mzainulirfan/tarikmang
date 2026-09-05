@@ -28,15 +28,16 @@ export type GameState = {
 export type Question = {
   id: string;
   text: string;
-  answer: number;
-  options: number[];
+  answer: string | number;
+  options: (string | number)[];
   operation: Operation;
   difficulty: Difficulty;
+  bankId?: string | null;
 };
 
 export type AnswerRecord = {
   team: Team;
-  answer: number;
+  answer: string | number;
   isCorrect: boolean;
   answeredAt: number; // server timestamp
   responseMs: number;

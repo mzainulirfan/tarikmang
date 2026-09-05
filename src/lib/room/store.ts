@@ -107,11 +107,73 @@ export async function startCountdown(code: string): Promise<RoomState | null> {
   return room;
 }
 
+async function getNextQuestion(room: RoomState): Promise<import("@/types/game").Question> {
+  if (room.config.source === "bank" && room.config.bankId) {
+    // 1) jika room sudah embed customQuestions (opsi cepat lokal) → pakai itu
+    const embedded = (room as any).customQuestions as { id: string; question: string; options: string[]; correct_answer: string }[] | undefined;
+    if (embedded && embedded.length > 0) {
+      const unused = embedded.filter((q) => !(room.usedQuestionIds || []).includes(q.id));
+      const pool = unused.length > 0 ? unused : embedded;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      const opts = [...pick.options].sort(() => Math.random() - 0.5);
+      return {
+        id: pick.id,
+        text: pick.question,
+        answer: pick.correct_answer,
+        options: opts,
+        operation: "campuran",
+        difficulty: "mudah",
+        bankId: room.config.bankId,
+      };
+    }
+    // 2) coba Supabase
+    try {
+      const exclude = (room.usedQuestionIds || []).join(",");
+      const res = await fetch(`/api/banks/next?bank_id=${room.config.bankId}&exclude=${encodeURIComponent(exclude)}`, { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        const q = json.question;
+        if (q) {
+          const opts = [...q.options].sort(() => Math.random() - 0.5);
+          return {
+            id: q.id,
+            text: q.question,
+            answer: q.correct_answer,
+            options: opts,
+            operation: "campuran",
+            difficulty: (q.difficulty as any) || "mudah",
+            bankId: room.config.bankId,
+          };
+        }
+      }
+    } catch {}
+    // 3) fallback local
+    try {
+      const { getRandomQuestion } = await import("@/lib/banks/local");
+      const q = getRandomQuestion(room.config.bankId, room.usedQuestionIds || []);
+      if (q) {
+        const opts = [...q.options].sort(() => Math.random() - 0.5);
+        return {
+          id: q.id,
+          text: q.question,
+          answer: q.correct_answer,
+          options: opts,
+          operation: "campuran",
+          difficulty: "mudah",
+          bankId: room.config.bankId,
+        };
+      }
+    } catch {}
+  }
+  return generateQuestion(room.config.difficulty, room.config.operation);
+}
+
 export async function startRound(code: string): Promise<RoomState | null> {
   const room = await loadRoom(code);
   if (!room) return null;
-  const q = generateQuestion(room.config.difficulty, room.config.operation);
+  const q = await getNextQuestion(room);
   room.question = q;
+  if (q.id) room.usedQuestionIds = [...(room.usedQuestionIds || []), q.id];
   room.questionStartedAt = Date.now();
   room.answers = { A: null, B: null };
   room.status = "playing";
@@ -120,7 +182,7 @@ export async function startRound(code: string): Promise<RoomState | null> {
   return room;
 }
 
-export async function submitAnswer(code: string, team: Team, answer: number, token: string): Promise<RoomState | null> {
+export async function submitAnswer(code: string, team: Team, answer: string | number, token: string): Promise<RoomState | null> {
   // jika remote (Supabase) → pakai server timestamp biar fair barengan pencet
   if (isRemote()) {
     try {
@@ -215,12 +277,12 @@ export async function nextRoundOrFinish(code: string): Promise<RoomState | null>
   const room = await loadRoom(code);
   if (!room) return null;
   if (room.status !== "result") return room;
-  // flow baru: 321 hanya di awal, antar ronde langsung next question tanpa countdown (seketika)
   if (room.round >= room.config.totalRounds) {
     if (room.scoreA === room.scoreB) {
       room.suddenDeath = true;
       room.round += 1;
-      const q = generateQuestion(room.config.difficulty, room.config.operation);
+      const q = await getNextQuestion(room);
+      if (q.id) room.usedQuestionIds = [...(room.usedQuestionIds || []), q.id];
       room.question = q;
       room.questionStartedAt = Date.now();
       room.answers = { A: null, B: null };
@@ -231,7 +293,8 @@ export async function nextRoundOrFinish(code: string): Promise<RoomState | null>
     }
     if (room.suddenDeath && room.lastResult?.winner === "draw") {
       room.round += 1;
-      const q = generateQuestion(room.config.difficulty, room.config.operation);
+      const q = await getNextQuestion(room);
+      if (q.id) room.usedQuestionIds = [...(room.usedQuestionIds || []), q.id];
       room.question = q;
       room.questionStartedAt = Date.now();
       room.answers = { A: null, B: null };
@@ -249,9 +312,9 @@ export async function nextRoundOrFinish(code: string): Promise<RoomState | null>
     await saveRoom(room);
     return room;
   }
-  // normal next: langsung playing dengan soal baru, tanpa countdown
   room.round += 1;
-  const q = generateQuestion(room.config.difficulty, room.config.operation);
+  const q = await getNextQuestion(room);
+  if (q.id) room.usedQuestionIds = [...(room.usedQuestionIds || []), q.id];
   room.question = q;
   room.questionStartedAt = Date.now();
   room.answers = { A: null, B: null };
@@ -273,6 +336,7 @@ export async function resetRoom(code: string): Promise<RoomState | null> {
   room.answers = { A: null, B: null };
   room.lastResult = null;
   room.suddenDeath = false;
+  room.usedQuestionIds = [];
   await saveRoom(room);
   return room;
 }

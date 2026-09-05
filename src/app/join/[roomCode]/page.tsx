@@ -140,9 +140,9 @@ export default function JoinPage() {
     }
   };
 
-  const handleAnswer = async (choice: number) => {
+  const handleAnswer = async (choice: string | number) => {
     if (!team || !room.question || locked) return;
-    const isCorrect = choice === room.question.answer;
+    const isCorrect = String(choice).trim() === String(room.question.answer).trim();
     const res = await submitAnswer(code, team, choice, token);
     if (!res) return;
     if (isCorrect) {

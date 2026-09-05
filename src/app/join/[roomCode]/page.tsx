@@ -13,8 +13,10 @@ import type { Team } from "@/types/game";
 
 export default function JoinPage() {
   const params = useParams<{ roomCode: string }>();
-  const code = (params.roomCode as string)?.toUpperCase();
-  const { room } = useRoom(code);
+  const rawCode = (params.roomCode as string) || "";
+  const code = rawCode.toUpperCase();
+  const isValidCode = /^[A-Z0-9]{5}$/.test(code);
+  const { room } = useRoom(isValidCode ? code : null);
   const [team, setTeam] = useState<Team | null>(null);
   const [token, setToken] = useState<string>("");
   const [timeLeft, setTimeLeft] = useState(10);
@@ -32,18 +34,27 @@ export default function JoinPage() {
 
   // restore from localStorage per PRD #35 reconnect
   useEffect(() => {
-    const saved = localStorage.getItem(`tarikmang:player:${code}`);
-    if (saved) {
+    if (!isValidCode) return;
+    try {
+      const saved = localStorage.getItem(`tarikmang:player:${code}`);
+      if (saved) {
+        try {
+          const { team: t, token: tk } = JSON.parse(saved);
+          setTeam(t);
+          setToken(tk);
+        } catch {}
+      } else {
+        const tk = generatePlayerToken();
+        setToken(tk);
+      }
+    } catch {
+      // localStorage blocked (private mode) → generate token anyway
       try {
-        const { team: t, token: tk } = JSON.parse(saved);
-        setTeam(t);
+        const tk = generatePlayerToken();
         setToken(tk);
       } catch {}
-    } else {
-      const tk = generatePlayerToken();
-      setToken(tk);
     }
-  }, [code]);
+  }, [code, isValidCode]);
 
   // auto rejoin if token exists
   useEffect(() => {
@@ -87,10 +98,20 @@ export default function JoinPage() {
     else if (room?.status === "finished") setLocked(true);
   }, [room?.status, room?.answers, team]);
 
+  if (!isValidCode) {
+    return (
+      <main className="max-w-md mx-auto px-4 py-10 text-center">
+        <div className="bg-white rounded-3xl p-6 shadow">Kode room tidak valid: {rawCode || "(kosong)"} — harus 5 karakter A-Z0-9.</div>
+        <a href="/" className="mt-4 inline-block bg-sky-500 text-white font-black px-6 py-3 rounded-2xl">Kembali</a>
+      </main>
+    );
+  }
+
   if (!room) {
     return (
       <main className="max-w-md mx-auto px-4 py-10 text-center">
-        <div className="bg-white rounded-3xl p-6 shadow">Room {code} tidak ditemukan / expired.</div>
+        <div className="bg-white rounded-3xl p-6 shadow">Memuat room {code}... Jika lama, room tidak ditemukan / expired (24 jam) atau HP offline.</div>
+        <div className="mt-3 text-xs text-slate-500">Coba buat room baru di <a href="/host" className="underline">/host</a> lalu scan lagi.</div>
       </main>
     );
   }
